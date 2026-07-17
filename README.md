@@ -11,6 +11,7 @@ This Python bot helps you find your perfect apartment in the Netherlands. It con
 - Monitors several apartment rental websites, including Pararius, Kamernet, 123Wonen, and more.
 - Periodically refreshes the pages to find new listings.
 - Sends Telegram notifications for new apartments that match your preferences.
+- Supports multiple users, each with their own cities and price filters.
 - Uses threading for efficient resource usage, with one thread running the Telegram bot and another managing the apartment-hunting process.
 
 ## Getting the bot to work
@@ -73,11 +74,12 @@ The bot is now running, but we need to subscribe to be able to receive the apart
 /subscribe
 ```
 
-It is also possible to configure the maximum and minimum prices to filter the apartments with the `--set-min` and `--set-max` commands. For example:
+Then, select the cities you want to monitor with the `/start` command, and optionally configure your price filters. Each user has their own cities and price filters. For example:
 
 ```
-./hunter.sh --set-max 1000
-./hunter.sh --set-min 300
+/start
+/set_max_price 1000
+/set_min_price 300
 ```
 
 All set up! You can now leave the bot running and wait for the notifications :)
@@ -114,13 +116,13 @@ sudo ./setup-systemd.sh --uninstall     # remove the service
 
 Once the bot is running, you can interact with it using the following commands:
 
-- `/start` - Start the bot and select a city to monitor for apartment listings.
+- `/start` - Select the cities to monitor for apartment listings.
 - `/subscribe` - Subscribe to receive apartment notifications.
 - `/unsubscribe` - Unsubscribe from apartment notifications.
-- `/status` - Check the currently selected city and price filters.
-- `/list` - Display all apartment listings found so far.
-- `/set_min_price <amount>` - Set the minimum price filter for apartment listings.
-- `/set_max_price <amount>` - Set the maximum price filter for apartment listings.
+- `/status` - Check your selected cities and price filters.
+- `/list` - Display the apartment listings found so far (filtered by your price filters).
+- `/set_min_price <amount>` - Set your minimum price filter.
+- `/set_max_price <amount>` - Set your maximum price filter.
 - `/help` - Display a list of available commands and their descriptions.
 
 ## License

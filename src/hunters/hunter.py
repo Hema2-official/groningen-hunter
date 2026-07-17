@@ -17,17 +17,17 @@ options.add_argument("--disable-dev-shm-usage")
 service = Service(CHROMEDRIVER_BIN)
 browser = webdriver.Chrome(service=service, options=options)
 
-# The browser is shared by all hunters: quit it once, on shutdown
 def shutdown_browser():
     browser.quit()
 
 class Prey:
-    def __init__(self, name: str, price: str, link: str, agency: str, website: str):
+    def __init__(self, name: str, price: str, link: str, agency: str, website: str, city: str = None):
         self.name = name
         self.price = price
         self.link = link
         self.agency = agency
         self.website = website
+        self.city = city
 
     def __hash__(self):
         return hash(self.link)
@@ -43,7 +43,7 @@ class Prey:
 class Hunter:
     def __init__(self, name: str):
         self.name = name
-        self.urls: list[str] = []
+        self.city_urls: dict[str, str] = {}
 
     def start(self):
         pass
@@ -53,10 +53,13 @@ class Hunter:
 
     def hunt(self):
         preys: set[Prey] = set()
-        for (i, url) in enumerate(self.urls):
+        city_urls = list(self.city_urls.items())
+        for (i, (city, url)) in enumerate(city_urls):
             browser.get(url)
-            preys.update(self.process()) # add to set (avoids duplicates)
-            if i < len(self.urls) - 1: time.sleep(2) # delay between requests to avoid 429
+            for prey in self.process():
+                prey.city = city
+                preys.add(prey) # add to set (avoids duplicates)
+            if i < len(city_urls) - 1: time.sleep(2) # delay between requests to avoid 429
         return preys
 
     def process(self) -> list[Prey]:
@@ -73,7 +76,7 @@ class Hunter:
 
         # Set URLs for supported cities
         intersection = cities & set(all_cities.keys())
-        self.urls = [all_cities[city] for city in intersection]
+        self.city_urls = {city: all_cities[city] for city in intersection}
 
         # Return the unsupported cities
         return cities - intersection
