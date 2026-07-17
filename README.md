@@ -16,16 +16,20 @@ This Python bot helps you find your perfect apartment in the Netherlands. It con
 ## Getting the bot to work
 
 ### Create a Telegram bot
+
 On Telegram, search for "BotFather"
 Send him the message
+
 ```
 /newbot
 ```
+
 Follow the BotFather steps!
 
 When you are done, he should tell you the HTTP API token, we'll need this later.
 
 ### Windows setup
+
 We will install the Windows Subsystem for Linux (WSL). Open the "Windows PowerShell" and run the following command:
 
 ```
@@ -35,7 +39,9 @@ wsl --install
 Restart the computer and open the Ubuntu program. You can now follow the Ubuntu setup.
 
 ### Ubuntu setup
+
 If you don't have docker installed, install docker.
+
 ```
 sudo snap install docker
 sudo groupadd docker
@@ -53,6 +59,7 @@ cd groningen-hunter
 ```
 
 ### Running the bot
+
 Before running the bot, we need to set the Telegram HTTP API token (the one you got from the BotFather)
 
 ```
@@ -80,6 +87,28 @@ All set up! You can now leave the bot running and wait for the notifications :)
 ```
 
 If you implement new hunters or develop new features, please create a PR. If you find any bugs, please open a new issue. All help is welcome ;)
+
+### Running as a systemd service
+
+If you prefer not to use Docker, you can run the bot directly on any Linux system with APT and systemd as a systemd service.
+
+```
+git clone https://github.com/brenocq/groningen-hunter.git
+cd groningen-hunter
+./hunter.sh --set-bot-token "YOUR-TELEGRAM-BOT-TOKEN"
+sudo ./setup-systemd.sh
+```
+
+To upgrade after pulling new code, just re-run `sudo ./setup-systemd.sh`. Configuration and history will be preserved.
+
+#### Useful commands:
+
+```
+systemctl status groningen-hunter       # check service status
+journalctl -u groningen-hunter -f       # follow the logs
+sudo systemctl restart groningen-hunter # restart the bot
+sudo ./setup-systemd.sh --uninstall     # remove the service
+```
 
 ### Telegram Bot Commands
 
