@@ -17,6 +17,10 @@ options.add_argument("--disable-dev-shm-usage")
 service = Service(CHROMEDRIVER_BIN)
 browser = webdriver.Chrome(service=service, options=options)
 
+# The browser is shared by all hunters: quit it once, on shutdown
+def shutdown_browser():
+    browser.quit()
+
 class Prey:
     def __init__(self, name: str, price: str, link: str, agency: str, website: str):
         self.name = name
@@ -45,7 +49,7 @@ class Hunter:
         pass
 
     def stop(self):
-        browser.close()
+        pass
 
     def hunt(self):
         preys: set[Prey] = set()

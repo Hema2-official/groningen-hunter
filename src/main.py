@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from telebot.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
 from history import History
-from hunters.hunter import Hunter, Prey
+from hunters.hunter import Hunter, Prey, shutdown_browser
 from hunters.gruno import Gruno
 from hunters.kamernet import Kamernet
 from hunters.pararius import Pararius
@@ -44,7 +44,28 @@ if MINIMUM_PRICE is None:
 else:
     print(f'MINIMUM_PRICE is set to {MINIMUM_PRICE}')
 
+# --- City selection map (static: built once at startup) ---
+def build_city_map() -> dict[str, str]:
+    city_set = set()
+    for hunter in ALL_HUNTERS:
+        try:
+            city_set.update(hunter.supported_cities())
+        except NotImplementedError:
+            continue
+    return {str(i + 1): city for i, city in enumerate(sorted(city_set))}
+
+city_map_global = build_city_map()
+
+def parse_price(price) -> int | None:
+    try:
+        return int(price)
+    except (TypeError, ValueError):
+        return None
+
 # --- Utility functions ---
+# Handlers run on telebot worker threads: guard the settings read-modify-write
+settings_lock = threading.Lock()
+
 def update_env_file():
     with open(ENV_FILE_PATH, 'w') as f:
         if BOT_TOKEN is not None:
@@ -77,10 +98,15 @@ def broadcast_message(text: str):
 def subscribe_message(message: Message):
     global chat_ids, CHAT_ID
     chat_id = str(message.chat.id)
-    if chat_id not in chat_ids:
-        chat_ids.append(chat_id)
-        CHAT_ID = ','.join(chat_ids)
-        update_env_file()
+    with settings_lock:
+        if chat_id not in chat_ids:
+            chat_ids.append(chat_id)
+            CHAT_ID = ','.join(chat_ids)
+            update_env_file()
+            subscribed = True
+        else:
+            subscribed = False
+    if subscribed:
         print(f'New chat ID subscribed: {chat_id}. Current chat_ids "{CHAT_ID}"')
         send_message(chat_id, 'You have been subscribed to receive the Netherlands housing notifications!')
     else:
@@ -90,10 +116,15 @@ def subscribe_message(message: Message):
 def unsubscribe_message(message: Message):
     global chat_ids, CHAT_ID
     chat_id = str(message.chat.id)
-    if chat_id in chat_ids:
-        chat_ids.remove(chat_id)
-        CHAT_ID = ','.join(chat_ids)
-        update_env_file()
+    with settings_lock:
+        if chat_id in chat_ids:
+            chat_ids.remove(chat_id)
+            CHAT_ID = ','.join(chat_ids)
+            update_env_file()
+            unsubscribed = True
+        else:
+            unsubscribed = False
+    if unsubscribed:
         print(f'Chat ID unsubscribed: {chat_id}. Current chat_ids "{CHAT_ID}"')
         send_message(chat_id, 'You have been unsubscribed from receiving Netherlands housing notifications.')
     else:
@@ -125,8 +156,8 @@ def help_message(message: Message):
         /list - Display all apartment listings found so far.
 
         💰 *Price Filters:*
-        /set\_min\_price <amount> - Set the minimum price filter.
-        /set\_max\_price <amount> - Set the maximum price filter.
+        /set\\_min\\_price <amount> - Set the minimum price filter.
+        /set\\_max\\_price <amount> - Set the maximum price filter.
 
         ❓ *Help:*
         /help - Display this help message.
@@ -141,8 +172,9 @@ def set_min_price(message: Message):
     global MINIMUM_PRICE
     try:
         price = int(message.text.split()[1])
-        MINIMUM_PRICE = price
-        update_env_file()
+        with settings_lock:
+            MINIMUM_PRICE = price
+            update_env_file()
         bot.send_message(message.chat.id, f"Minimum price filter set to {MINIMUM_PRICE}.")
     except (IndexError, ValueError):
         bot.send_message(message.chat.id, "Invalid input. Use /set_min_price <amount>.")
@@ -155,8 +187,9 @@ def set_max_price(message):
     global MAXIMUM_PRICE
     try:
         price = int(message.text.split()[1])
-        MAXIMUM_PRICE = price
-        update_env_file()
+        with settings_lock:
+            MAXIMUM_PRICE = price
+            update_env_file()
         bot.send_message(message.chat.id, f"Maximum price filter set to {MAXIMUM_PRICE}.")
     except (IndexError, ValueError):
         bot.send_message(message.chat.id, "Invalid input. Use /set_max_price <amount>.")
@@ -165,25 +198,7 @@ def set_max_price(message):
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    global selected_cities
-
-    # Dynamically fetch supported cities from all hunters
-    city_set = set()
-    for hunter in ALL_HUNTERS:
-        try:
-            city_set.update(hunter.supported_cities())
-        except NotImplementedError:
-            continue
-
-    # Create a numbered list of cities
-    city_list = sorted(city_set)
-    city_map = {str(i + 1): city for i, city in enumerate(city_list)}
-
-    # Save the city map globally for selection
-    global city_map_global
-    city_map_global = city_map
-
-    city_options = "\n".join([f"{i}) {city}" for i, city in city_map.items()])
+    city_options = "\n".join([f"{i}) {city}" for i, city in city_map_global.items()])
     bot.send_message(
         message.chat.id,
         f"Please select a city by typing the corresponding number:\n{city_options}",
@@ -194,7 +209,12 @@ def parse_city_indices(message: Message):
     # extract comma separated values and convert to set
     return set([part.strip() for part in message.text.split(',')])
 
-@bot.message_handler(func=lambda message: parse_city_indices(message).issubset(city_map_global))
+def is_city_selection(message: Message) -> bool:
+    if message.text is None:
+        return False
+    return parse_city_indices(message).issubset(city_map_global)
+
+@bot.message_handler(func=is_city_selection)
 def city_selection_message(message: Message):
     global selected_cities
     selected_cities = set([city_map_global[index] for index in parse_city_indices(message)])
@@ -229,8 +249,13 @@ def unrecognized_message(message: Message):
 def run_hunters():
     global selected_cities
 
+    waiting_logged = False
     while len(selected_cities) == 0:
-        print('Waiting for city selection...')
+        if not runHunters:
+            return
+        if not waiting_logged:
+            print('Waiting for city selection...')
+            waiting_logged = True
         time.sleep(5)
 
     active_hunters: list[Hunter] = []
@@ -262,13 +287,20 @@ def run_hunters():
         if len(filtered_preys) > 0:
             print(f'Found {len(filtered_preys)} new preys')
 
-        if MAXIMUM_PRICE is not None:
-            filtered_preys = [prey for prey in filtered_preys if int(prey.price) <= int(MAXIMUM_PRICE)]
-
-        if MINIMUM_PRICE is not None:
-            filtered_preys = [prey for prey in filtered_preys if int(prey.price) >= int(MINIMUM_PRICE)]
-
+        max_price = parse_price(MAXIMUM_PRICE)
+        min_price = parse_price(MINIMUM_PRICE)
+        price_filtered_preys = []
         for prey in filtered_preys:
+            price = parse_price(prey.price)
+            # An unparsable price skips the filters so the listing is not lost
+            if price is not None:
+                if max_price is not None and price > max_price:
+                    continue
+                if min_price is not None and price < min_price:
+                    continue
+            price_filtered_preys.append(prey)
+
+        for prey in price_filtered_preys:
             message_text = textwrap.dedent(f'''
                 📢 *Listing Found:*
 
@@ -278,12 +310,17 @@ def run_hunters():
                 Link: {prey.link}
             ''')
             broadcast_message(message_text)
-        
-        time.sleep(4 * 60)
+
+        # Sleep in small steps so shutdown stays responsive
+        for _ in range(4 * 60 // 5):
+            if not runHunters:
+                break
+            time.sleep(5)
 
     print('Stop hunters')
     for hunter in active_hunters:
         hunter.stop()
+    shutdown_browser()
 
 # --- Main Entrypoint ---
 if __name__ == "__main__":
