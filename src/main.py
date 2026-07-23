@@ -261,7 +261,7 @@ def run_hunters():
                 print(f'Hunter {hunter.name} found {len(hunter_preys)} preys')
                 preys.update(hunter_preys)
             except Exception as e:
-                print(f'Error with hunter {hunter.name}: {e}')
+                print(f'Error with hunter {hunter.name}: {type(e).__name__}: {e}')
 
         new_preys = history.filter(preys)
         if len(new_preys) > 0:
