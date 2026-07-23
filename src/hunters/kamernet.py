@@ -15,8 +15,8 @@ class Kamernet(Hunter):
         wait = WebDriverWait(browser, 10)
 
         # Locate the container holding listings (adjust if necessary)
-        listings_container = wait.until(EC.visibility_of_element_located((By.CLASS_NAME, 'GridGenerator_root__gJhqx')))
-        listings = listings_container.find_elements(By.CLASS_NAME, 'ListingCard_root__e9Z81')
+        listings_container = wait.until(EC.visibility_of_element_located((By.CLASS_NAME, 'ListingsGrid_root__2kNRD')))
+        listings = listings_container.find_elements(By.CLASS_NAME, 'SearchResultCard_root__hSxn3')
 
         preys: list[Prey] = []
         for listing in listings:
