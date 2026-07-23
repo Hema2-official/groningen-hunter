@@ -36,4 +36,5 @@ class Kamernet(Hunter):
             'The Hague': 'https://kamernet.nl/en/for-rent/properties-den-haag',
             'Enschede': 'https://kamernet.nl/en/for-rent/properties-enschede',
             'Hengelo': 'https://kamernet.nl/en/for-rent/properties-hengelo',
+            'Rotterdam': 'https://kamernet.nl/en/for-rent/properties-rotterdam'
         }
